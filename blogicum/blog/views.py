@@ -31,8 +31,21 @@ def post_detail(request, pk):
     post = get_object_or_404(
         select_related_posts(published_posts(Post.objects)).filter(pk=pk)
     )
+    comments = Comment.objects.filter(post=post)
+    if request.method == 'POST':
+        form = CommentForm(request.POST)
+        if form.is_valid():
+            comment = form.save(commit=False)
+            comment.post = post
+            comment.author = request.user
+            comment.save()
+
+    else:
+        form = CommentForm()
     context = {
         'post': post,
+        'comments': comments,
+        'form': form,
     }
     return render(request, template, context)
 
@@ -92,7 +105,6 @@ class CommentFormMixin:
 
 
 class CommentListView(CommentMixin, ListView):
-    form = CommentForm
     ordering = ['-pub_date']
 
 
@@ -112,7 +124,7 @@ class ProfileMixin:
     model = UserProfile
     success_url = reverse_lazy('blog:index')
     template_name = 'blog/profile.html'
-    
+
 
 class ProfileFormMixin:
     form_class = UserProfileForm
@@ -121,10 +133,12 @@ class ProfileFormMixin:
 class ProfileDetailView(ProfileMixin, DetailView):
     paginate_by = 10
 
-    def get_object(self):
-        username = self.kwargs.get('username')
-        user = get_object_or_404(User, username=username)  # Получаем User по username
-        return get_object_or_404(UserProfile, user=user)
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['get_full_name'] = (
+            self.object.get_full_name()
+        )
+        return context
 
 
 class ProfileCreateView(ProfileMixin, ProfileFormMixin, CreateView):

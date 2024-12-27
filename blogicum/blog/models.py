@@ -83,8 +83,19 @@ class Location(PublishedModel):
 
 
 class UserProfile(models.Model):
+    first_name = models.CharField(
+        max_length=30, verbose_name='Имя', default='Иван')
+    last_name = models.CharField(
+        max_length=30, verbose_name='Фамилия', default='Иванов')
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     location = models.CharField(max_length=100, blank=True)
+    username = models.CharField(max_length=150, unique=True, default=None)
+    date_joined = models.DateTimeField(
+        auto_now=False, auto_now_add=False,
+        verbose_name='Дата и время регистрации')
+
+    def get_full_name(self):
+        return f"{self.first_name} {self.last_name}"
 
     def __str__(self):
         return self.user.username
@@ -96,6 +107,9 @@ class Comment(PublishedModel):
     pub_date = models.DateTimeField(
         auto_now=False, auto_now_add=False,
         verbose_name='Дата и время публикации комментария')
+    post = models.ForeignKey(
+        Post, related_name='comments', on_delete=models.CASCADE, default=1
+    )
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,

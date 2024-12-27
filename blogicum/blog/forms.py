@@ -13,11 +13,16 @@ class PostForm(forms.ModelForm):
         fields = '__all__'
         exclude = ["comment"]
 
+        class Meta:
+            widgets = {
+                'pub_date': forms.DateInput(attrs={'type': 'date'})
+            }
+
 
 class ProfileForm(forms.ModelForm):
     class Meta:
         # Указываем модель, на основе которой должна строиться форма.
-        model = User
+        model = UserProfile
         # Указываем, что надо отобразить все поля.
         fields = '__all__'
 
