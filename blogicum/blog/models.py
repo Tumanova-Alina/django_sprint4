@@ -1,8 +1,15 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from core.models import PublishedModel
+from django.utils import timezone
+from django.db.models import Count
 
 User = get_user_model()
+
+
+class PostQuerySet(models.QuerySet):
+    def with_comment_count(self):
+        return self.annotate(comment_count=Count('comments'))
 
 
 class Post(PublishedModel):
@@ -13,8 +20,9 @@ class Post(PublishedModel):
         verbose_name='Дата и время публикации',
         help_text=('Если установить дату и время в будущем — '
                    'можно делать отложенные публикации.'))
-    image = models.ImageField('Фото', upload_to='profile_images',
+    image = models.ImageField('Фото', upload_to='profile_images/',
                               null=True, blank=True)
+    objects = PostQuerySet.as_manager()
     location = models.ForeignKey(
         'Location',
         on_delete=models.SET_NULL,
@@ -35,13 +43,6 @@ class Post(PublishedModel):
         on_delete=models.CASCADE,
         related_name='posts',
         verbose_name='Автор публикации'
-    )
-    comment = models.ForeignKey(
-        'Comment',
-        on_delete=models.CASCADE,
-        null=True,
-        related_name='posts',
-        verbose_name='Комментарий'
     )
 
     class Meta:
@@ -87,28 +88,45 @@ class UserProfile(models.Model):
         max_length=30, verbose_name='Имя', default='Иван')
     last_name = models.CharField(
         max_length=30, verbose_name='Фамилия', default='Иванов')
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(User, on_delete=models.CASCADE,
+                                related_name='profile')
     location = models.CharField(max_length=100, blank=True)
     username = models.CharField(max_length=150, unique=True, default=None)
+    email = models.CharField(
+        max_length=60,
+        default=None,
+        verbose_name='Адрес электронной почты'
+    )
     date_joined = models.DateTimeField(
-        auto_now=False, auto_now_add=False,
+        default=timezone.now,
         verbose_name='Дата и время регистрации')
 
     def get_full_name(self):
-        return f"{self.first_name} {self.last_name}"
+        return f"{self.first_name or 'Иван'}{self.last_name or 'Иванов'}"
 
     def __str__(self):
         return self.user.username
+
+    # class Meta:
+    #     constraints = (
+    #         models.UniqueConstraint(
+    #             fields=('first_name', 'last_name', 'username'),
+    #             name='Unique person constraint',
+    #         ),
+    #     )
 
 
 class Comment(PublishedModel):
     title = models.CharField(max_length=256, verbose_name='Заголовок')
     text = models.TextField(verbose_name='Текст комментария')
-    pub_date = models.DateTimeField(
-        auto_now=False, auto_now_add=False,
+    created_at = models.DateTimeField(
+        auto_now_add=True,
         verbose_name='Дата и время публикации комментария')
     post = models.ForeignKey(
-        Post, related_name='comments', on_delete=models.CASCADE, default=1
+        Post,
+        related_name='comments',
+        on_delete=models.CASCADE,
+        verbose_name='Пост'
     )
     author = models.ForeignKey(
         User,
@@ -118,7 +136,7 @@ class Comment(PublishedModel):
     )
 
     class Meta:
-        ordering = ['-pub_date']
+        ordering = ['created_at']
         verbose_name = 'комментарий'
         verbose_name_plural = 'Комментарии'
 
