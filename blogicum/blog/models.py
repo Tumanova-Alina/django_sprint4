@@ -1,7 +1,6 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from core.models import PublishedModel
-from django.utils import timezone
 from django.utils.timezone import now
 from django.db.models import Count
 
@@ -82,39 +81,6 @@ class Location(PublishedModel):
 
     def __str__(self):
         return self.name
-
-
-class UserProfile(models.Model):
-    first_name = models.CharField(
-        max_length=30, verbose_name='Имя', default='Иван')
-    last_name = models.CharField(
-        max_length=30, verbose_name='Фамилия', default='Иванов')
-    user = models.OneToOneField(User, on_delete=models.CASCADE,
-                                related_name='profile')
-    location = models.CharField(max_length=100, blank=True)
-    username = models.CharField(max_length=150, unique=True, default=None)
-    email = models.CharField(
-        max_length=60,
-        default=None,
-        verbose_name='Адрес электронной почты'
-    )
-    date_joined = models.DateTimeField(
-        default=timezone.now,
-        verbose_name='Дата и время регистрации')
-
-    def get_full_name(self):
-        return f"{self.first_name or 'Иван'}{self.last_name or 'Иванов'}"
-
-    def __str__(self):
-        return self.user.username
-
-    # class Meta:
-    #     constraints = (
-    #         models.UniqueConstraint(
-    #             fields=('first_name', 'last_name', 'username'),
-    #             name='Unique person constraint',
-    #         ),
-    #     )
 
 
 class Comment(PublishedModel):

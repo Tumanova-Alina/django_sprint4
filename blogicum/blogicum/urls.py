@@ -43,7 +43,9 @@ handler500 = 'pages.views.csrf_failure'
 handler403 = 'pages.views.server_error'
 
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(
+        settings.MEDIA_URL, document_root=settings.MEDIA_ROOT
+    )
 
 if settings.DEBUG:
     import debug_toolbar

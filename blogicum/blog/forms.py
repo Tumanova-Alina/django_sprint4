@@ -65,3 +65,10 @@ class UserRegistrationForm(UserCreationForm):
 
         if (password1 and password2 and password1 != password2):
             self.add_error('password2', "Пароли не совпадают.")
+
+
+class UserEditForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ['username', 'first_name',
+                  'last_name', 'email']

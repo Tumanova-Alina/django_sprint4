@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Category, Post, Location, Comment, UserProfile
+from .models import Category, Post, Location, Comment
 
 admin.site.empty_value_display = 'Не задано'
 
@@ -23,12 +23,6 @@ class LocationAdmin(admin.ModelAdmin):
 
 
 class CommentAdmin(admin.ModelAdmin):
-    inlines = (
-        PostInline,
-    )
-
-
-class UserProfileAdmin(admin.ModelAdmin):
     inlines = (
         PostInline,
     )
@@ -57,4 +51,3 @@ admin.site.register(Post, PostAdmin)
 admin.site.register(Category)
 admin.site.register(Location)
 admin.site.register(Comment)
-admin.site.register(UserProfile)
