@@ -1,5 +1,5 @@
 from django.shortcuts import get_object_or_404, render, redirect
-from .models import Post, Category, Comment, UserProfile
+from .models import Post, Category, Comment
 from .querysets import published_posts, select_related_posts
 from .forms import PostForm, CommentForm, UserRegistrationForm
 from django.views.generic import (
@@ -11,6 +11,8 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
 from django.core.exceptions import PermissionDenied
 from datetime import datetime
+from django.http import Http404
+from django.utils.timezone import now
 
 User = get_user_model()
 
@@ -24,7 +26,7 @@ class OnlyAuthorMixin(UserPassesTestMixin):
         if hasattr(obj, 'author'):
             return obj.author == self.request.user
         # Если это редактирование профиля (то есть объект типа User)
-        if isinstance(obj, self.request.user.__class__):
+        if isinstance(obj, type(self.request.user)):
             return obj == self.request.user
         # Если ни один из вариантов не сработал — запретить доступ
         return False
@@ -52,7 +54,15 @@ class PostDetailView(DetailView):
     slug_url_kwarg = 'post_id'
 
     def get_object(self, queryset=None):
-        return Post.objects.get(id=self.kwargs['post_id'])
+        # return Post.objects.get(id=self.kwargs['post_id'])
+        post = get_object_or_404(Post, id=self.kwargs['post_id'])
+        if not post.is_published and self.request.user != post.author:
+            raise Http404("Пост снят с публикации и недоступен.")
+        if not post.category.is_published and self.request.user != post.author:
+            raise Http404("Категория снята с публикации, доступ ограничен.")
+        if post.pub_date > now() and self.request.user != post.author:
+            raise Http404("Этот пост еще не опубликован.")
+        return post
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -124,17 +134,35 @@ class PostFormMixin:
 
 
 class PostCreateView(LoginRequiredMixin, PostMixin, PostFormMixin, CreateView):
+    slug_url_kwarg = 'post_id'
+    login_url = reverse_lazy('login')
+
     def form_valid(self, form):
         form.instance.author = self.request.user
+        form.save()
         return super().form_valid(form)
+
+    # def get_context_data(self, **kwargs):
+    #     context = super().get_context_data(**kwargs)
+    #     context['form'] = self.form_class(instance=self.object)
+    #     return context
 
     def get_success_url(self):
         return reverse_lazy(
             'blog:profile', kwargs={'username': self.request.user.username})
 
+    # self.object = form.save(commit=False)
+    #     self.object.image = form.cleaned_data.get('image')
+    #     self.object.save()
+    #     return super().form_valid(form)
+
+    # def get_context_data(self, **kwargs):
+    #     context = super().get_context_data(**kwargs)
+    #     context['request'] = self.request  # Позволяет использовать request в шаблоне
+    #     return context
+
 
 class PostUpdateView(
-    LoginRequiredMixin,
     OnlyAuthorMixin,
     PostMixin,
     PostFormMixin,
@@ -144,18 +172,24 @@ class PostUpdateView(
 
     def form_valid(self, form):
         form.instance.author = self.request.user
-        return super().form_valid(form)
+        response = super().form_valid(form)
+        return redirect(self.get_success_url())
 
     def get_object(self, queryset=None):
-        return Post.objects.get(
-            id=self.kwargs['post_id']
-        )
-    
+        # return get_object_or_404(Post.objects.get(id=self.kwargs['post_id']))
+        return get_object_or_404(Post, id=self.kwargs['post_id'])
+
     def handle_no_permission(self):
-        return redirect(f"/posts/{self.kwargs['post_id']}/")
+        post = self.get_object()  # Убедитесь, что у нас есть объект поста
+        return redirect('blog:post_detail', post_id=post.id)
+
+    def get_success_url(self):
+        # URL отредактированного поста
+        return reverse_lazy('blog:post_detail',
+                            kwargs={'post_id': self.kwargs['post_id']})
+
 
 class PostDeleteView(
-    LoginRequiredMixin,
     OnlyAuthorMixin,
     PostMixin,
     PostFormMixin, DeleteView
@@ -163,7 +197,13 @@ class PostDeleteView(
     slug_url_kwarg = 'post_id'
 
     def get_object(self, queryset=None):
-        return Post.objects.get(id=self.kwargs['post_id'])
+        # return get_object_or_404(Post.objects.get(id=self.kwargs['post_id']))
+        return get_object_or_404(Post, id=self.kwargs['post_id'])
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['form'] = self.form_class(instance=self.object)
+        return context
 
 
 class CommentMixin:
@@ -187,7 +227,7 @@ class CommentListView(CommentMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['post'] = post
+        context['post'] = get_object_or_404(Post, id=self.kwargs['post_id'])
         if self.request.user.is_authenticated:
             context['form'] = CommentForm()
         return context
@@ -196,6 +236,7 @@ class CommentListView(CommentMixin, ListView):
 class CommentCreateView(LoginRequiredMixin, CommentMixin,
                         CommentFormMixin, CreateView):
     slug_url_kwarg = 'post_id'
+    login_url = reverse_lazy('login')
 
     def form_valid(self, form):
         form.instance.author = self.request.user
@@ -207,12 +248,12 @@ class CommentCreateView(LoginRequiredMixin, CommentMixin,
                             kwargs={'post_id': self.kwargs['post_id']})
 
 
-class CommentUpdateView(LoginRequiredMixin, OnlyAuthorMixin,
+class CommentUpdateView(OnlyAuthorMixin,
                         CommentMixin, CommentFormMixin, UpdateView):
     def get_object(self, queryset=None):
         comment = get_object_or_404(Comment, id=self.kwargs['comment_id'])
-        if comment.author != self.request.user:
-            raise PermissionDenied("Вы не можете изменять чужой комментарий.")
+        # if comment.author != self.request.user:
+        #     raise PermissionDenied("Вы не можете изменять чужой комментарий.")
         return comment
 
     def get_success_url(self):
@@ -221,15 +262,15 @@ class CommentUpdateView(LoginRequiredMixin, OnlyAuthorMixin,
 
 
 class CommentDeleteView(
-    LoginRequiredMixin,
     OnlyAuthorMixin,
     CommentMixin,
+    CommentFormMixin,
     DeleteView
 ):
     def get_object(self):
         comment = get_object_or_404(Comment, id=self.kwargs['comment_id'])
-        if comment.author != self.request.user:
-            raise PermissionDenied("Вы не можете удалять чужой комментарий.")
+        # if comment.author != self.request.user:
+        #     raise PermissionDenied("Вы не можете удалять чужой комментарий.")
         return comment
 
     def get_success_url(self):
@@ -272,35 +313,35 @@ class ProfileDetailView(ProfileMixin, DetailView):
 
 
 class ProfileUpdateView(
-    LoginRequiredMixin,
-    OnlyAuthorMixin, ProfileMixin, ProfileFormMixin, UpdateView
+
+    OnlyAuthorMixin, LoginRequiredMixin, ProfileMixin, ProfileFormMixin,
+    UpdateView
 ):
     context_object_name = 'profile'
     slug_field = 'username'
     slug_url_kwarg = 'username'
     template_name = 'blog/user.html'
+    login_url = reverse_lazy('login')
 
     def get_object(self):
+        if not self.request.user.is_authenticated:
+            return redirect(self.login_url)
+            # raise PermissionDenied("Пользователь не авторизован")
+        # Проверяем, совпадает ли профиль с пользователем
+        username = self.kwargs.get('username')
+        if not username or self.request.user.username != username:
+            return redirect('blog:profile',
+                            username=self.request.user.username)
+            # raise PermissionDenied("Нельзя редактировать чужой профиль")
+
+        # Возвращаем текущего пользователя
         return self.request.user
+
+    def handle_no_permission(self):
+        if not self.request.user.is_authenticated:
+            return redirect(self.login_url)
+        return redirect('blog:profile', username=self.request.user.username)
 
     def get_success_url(self):
         return reverse_lazy(
             'blog:profile', kwargs={'username': self.request.user.username})
-
-
-class ProfileDeleteView(LoginRequiredMixin, ProfileMixin, DeleteView):
-    slug_field = 'username'
-    slug_url_kwarg = 'username'
-    success_url = reverse_lazy('index')
-
-    def get_object(self):
-        # Получаем пользователя по username через User model
-        user = get_object_or_404(User, username=self.kwargs['username'])
-        # Возвращаем связанный UserProfile
-        return get_object_or_404(UserProfile, user=user)
-
-    def dispatch(self, request, *args, **kwargs):
-        obj = self.get_object()
-        if obj.user != request.user:
-            return redirect('blog:profile', username=obj.user.username)
-        return super().dispatch(request, *args, **kwargs)

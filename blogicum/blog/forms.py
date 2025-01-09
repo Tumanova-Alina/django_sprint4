@@ -9,7 +9,7 @@ User = get_user_model()
 class PostForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = '__all__'
+        fields = ['title', 'text', 'image', 'location', 'category']
         exclude = ['author', 'is_published']
         widgets = {
             'pub_date': forms.DateInput(attrs={'type': 'date'})
@@ -33,7 +33,6 @@ class UserRegistrationForm(UserCreationForm):
         label="Фамилия",
         widget=forms.TextInput(attrs={'class': 'form-control'})
     )
-    # username = forms.CharField()
     email = forms.EmailField(
         required=True,
         label="Email",

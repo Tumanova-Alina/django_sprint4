@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth import get_user_model
 from core.models import PublishedModel
 from django.utils import timezone
+from django.utils.timezone import now
 from django.db.models import Count
 
 User = get_user_model()
@@ -16,7 +17,7 @@ class Post(PublishedModel):
     title = models.CharField(max_length=256, verbose_name='Заголовок')
     text = models.TextField(verbose_name='Текст')
     pub_date = models.DateTimeField(
-        auto_now=False, auto_now_add=False,
+        auto_now=False, auto_now_add=False, default=now,
         verbose_name='Дата и время публикации',
         help_text=('Если установить дату и время в будущем — '
                    'можно делать отложенные публикации.'))
