@@ -1,57 +1,25 @@
 from django.db import models
+
 from django.contrib.auth import get_user_model
-from core.models import PublishedModel
+
 from django.utils.timezone import now
-from django.db.models import Count
+
+from .querysets import PostQuerySet
 
 User = get_user_model()
 
 
-class PostQuerySet(models.QuerySet):
-    def with_comment_count(self):
-        return self.annotate(comment_count=Count('comments'))
-
-
-class Post(PublishedModel):
-    title = models.CharField(max_length=256, verbose_name='Заголовок')
-    text = models.TextField(verbose_name='Текст')
-    pub_date = models.DateTimeField(
-        auto_now=False, auto_now_add=False, default=now,
-        verbose_name='Дата и время публикации',
-        help_text=('Если установить дату и время в будущем — '
-                   'можно делать отложенные публикации.'))
-    image = models.ImageField('Фото', upload_to='profile_images/',
-                              null=True, blank=True)
-    objects = PostQuerySet.as_manager()
-    location = models.ForeignKey(
-        'Location',
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name='posts',
-        verbose_name='Местоположение'
-    )
-    category = models.ForeignKey(
-        'Category',
-        on_delete=models.SET_NULL,
-        null=True,
-        related_name='posts',
-        verbose_name='Категория'
-    )
-    author = models.ForeignKey(
-        User,
-        on_delete=models.CASCADE,
-        related_name='posts',
-        verbose_name='Автор публикации'
-    )
+class PublishedModel(models.Model):
+    is_published = models.BooleanField(
+        default=True,
+        verbose_name='Опубликовано',
+        help_text='''Снимите галочку, чтобы скрыть публикацию.''')
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='Добавлено')
 
     class Meta:
-        ordering = ['-pub_date']
-        verbose_name = 'публикация'
-        verbose_name_plural = 'Публикации'
-
-    def __str__(self):
-        return self.title
+        abstract = True
 
 
 class Category(PublishedModel):
@@ -67,45 +35,103 @@ class Category(PublishedModel):
     class Meta:
         verbose_name = 'категория'
         verbose_name_plural = 'Категории'
+        ordering = ('title',)
 
     def __str__(self):
-        return self.slug
+        truncated_description = (
+            (self.description[:50] + '...') if
+            len(self.description) > 50 else self.description)
+        return f"{self.title} - {truncated_description} (slug: {self.slug})"
 
 
 class Location(PublishedModel):
-    name = models.CharField(max_length=256, verbose_name='Название места')
+    name = models.CharField(max_length=256, verbose_name='Название')
 
     class Meta:
         verbose_name = 'местоположение'
         verbose_name_plural = 'Местоположения'
+        ordering = ('name',)
 
     def __str__(self):
         return self.name
 
 
-class Comment(PublishedModel):
+class Post(PublishedModel):
+    related_name_value = 'posts'
     title = models.CharField(max_length=256, verbose_name='Заголовок')
-    text = models.TextField(verbose_name='Текст комментария')
+    text = models.TextField(verbose_name='Текст')
+    pub_date = models.DateTimeField(
+        auto_now=False, auto_now_add=False, default=now,
+        verbose_name='Дата и время публикации',
+        help_text=('Если установить дату и время в будущем — '
+                   'можно делать отложенные публикации.'))
+    image = models.ImageField('Фото', upload_to='profile_images/',
+                              null=True, blank=True)
+    objects = PostQuerySet.as_manager()
+    location = models.ForeignKey(
+        Location,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name=related_name_value,
+        verbose_name='Местоположение'
+    )
+    category = models.ForeignKey(
+        Category,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name=related_name_value,
+        verbose_name='Категория'
+    )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name=related_name_value,
+        verbose_name='Автор публикации'
+    )
+
+    class Meta:
+        ordering = ('-pub_date',)
+        verbose_name = 'публикация'
+        verbose_name_plural = 'Публикации'
+
+    def __str__(self):
+        truncated_text = (
+            (self.text[:50] + '...') if len(self.text) > 50 else self.text)
+        return (
+            f"{self.title} - {truncated_text} ({self.pub_date}, {self.author})"
+        )
+
+
+class Comment(PublishedModel):
+    related_name_value = 'comments'
+    title = models.CharField(max_length=256, verbose_name='Заголовок')
+    text = models.TextField(verbose_name='Текст')
     created_at = models.DateTimeField(
         auto_now_add=True,
         verbose_name='Дата и время публикации комментария')
     post = models.ForeignKey(
         Post,
-        related_name='comments',
+        related_name=related_name_value,
         on_delete=models.CASCADE,
         verbose_name='Пост'
     )
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name='comments',
+        related_name=related_name_value,
         verbose_name='Автор комментария'
     )
 
     class Meta:
-        ordering = ['created_at']
+        ordering = ('created_at',)
         verbose_name = 'комментарий'
         verbose_name_plural = 'Комментарии'
 
     def __str__(self):
-        return self.title
+        truncated_text = (
+            (self.text[:50] + '...') if len(self.text) > 50 else self.text)
+        return (
+            f'''{self.title} - {truncated_text}
+            ({self.created_at}, {self.author})'''
+        )

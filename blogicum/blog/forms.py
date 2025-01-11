@@ -1,16 +1,12 @@
 from django import forms
-from .models import Post, Comment
-from django.contrib.auth import get_user_model
-from django.contrib.auth.forms import UserCreationForm
 
-User = get_user_model()
+from .models import Post, Comment, User
 
 
 class PostForm(forms.ModelForm):
     class Meta:
         model = Post
-        fields = ['title', 'text', 'image', 'location', 'category']
-        exclude = ['author', 'is_published']
+        exclude = ['author']
         widgets = {
             'pub_date': forms.DateInput(attrs={'type': 'date'})
         }
@@ -22,24 +18,24 @@ class CommentForm(forms.ModelForm):
         fields = ('text',)
 
 
-class UserRegistrationForm(UserCreationForm):
+class UserRegistrationForm(forms.ModelForm):
     first_name = forms.CharField(
         required=True,
-        label="Имя",
+        label='Имя',
         widget=forms.TextInput(attrs={'class': 'form-control'})
     )
     last_name = forms.CharField(
         required=True,
-        label="Фамилия",
+        label='Фамилия',
         widget=forms.TextInput(attrs={'class': 'form-control'})
     )
     email = forms.EmailField(
         required=True,
-        label="Email",
+        label='Email',
         widget=forms.EmailInput(attrs={'class': 'form-control'})
     )
     password1 = forms.CharField(
-        label="Пароль",
+        label='Пароль',
         widget=forms.PasswordInput(attrs={'class': 'form-control'}),
         help_text=(
             '''Ваш пароль не должен быть слишком похож
@@ -48,9 +44,9 @@ class UserRegistrationForm(UserCreationForm):
             '''Пароль не может состоять только из цифр.'''
         ))
     password2 = forms.CharField(
-        label="Подтверждение пароля",
+        label='Подтверждение пароля',
         widget=forms.PasswordInput(attrs={'class': 'form-control'}),
-        help_text="Для подтверждения введите пароль еще раз."
+        help_text='Для подтверждения введите пароль еще раз.'
     )
 
     class Meta:
@@ -60,11 +56,11 @@ class UserRegistrationForm(UserCreationForm):
 
     def clean(self):
         cleaned_data = super().clean()
-        password1 = self.cleaned_data.get("password1")
-        password2 = cleaned_data.get("password2")
+        password1 = self.cleaned_data.get('password1')
+        password2 = cleaned_data.get('password2')
 
         if (password1 and password2 and password1 != password2):
-            self.add_error('password2', "Пароли не совпадают.")
+            self.add_error('password2', 'Пароли не совпадают.')
 
 
 class UserEditForm(forms.ModelForm):
