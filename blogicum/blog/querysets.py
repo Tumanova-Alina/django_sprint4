@@ -32,7 +32,8 @@ class PostQuerySet(models.QuerySet):
             )
 
         if with_comment_count:
-            queryset = queryset.annotate(comment_count=Count('comments'))
+            queryset = queryset.annotate(comment_count=Count('comments')
+                                         ).order_by('-pub_date')
 
         if with_pagination:
             paginator = Paginator(queryset, pagination_num)
