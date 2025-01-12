@@ -1,10 +1,10 @@
 from django.db import models
-
 from django.contrib.auth import get_user_model
-
 from django.utils.timezone import now
+from textwrap import dedent
 
 from .querysets import PostQuerySet
+
 
 User = get_user_model()
 
@@ -38,10 +38,7 @@ class Category(PublishedModel):
         ordering = ('title',)
 
     def __str__(self):
-        truncated_description = (
-            (self.description[:50] + '...') if
-            len(self.description) > 50 else self.description)
-        return f"{self.title} - {truncated_description} (slug: {self.slug})"
+        return f"{self.title} - {self.description[:50]} (slug: {self.slug})"
 
 
 class Location(PublishedModel):
@@ -57,7 +54,6 @@ class Location(PublishedModel):
 
 
 class Post(PublishedModel):
-    related_name_value = 'posts'
     title = models.CharField(max_length=256, verbose_name='Заголовок')
     text = models.TextField(verbose_name='Текст')
     pub_date = models.DateTimeField(
@@ -73,38 +69,33 @@ class Post(PublishedModel):
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
-        related_name=related_name_value,
         verbose_name='Местоположение'
     )
     category = models.ForeignKey(
         Category,
         on_delete=models.SET_NULL,
         null=True,
-        related_name=related_name_value,
         verbose_name='Категория'
     )
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name=related_name_value,
         verbose_name='Автор публикации'
     )
 
     class Meta:
+        default_related_name = 'posts'
         ordering = ('-pub_date',)
         verbose_name = 'публикация'
         verbose_name_plural = 'Публикации'
 
     def __str__(self):
-        truncated_text = (
-            (self.text[:50] + '...') if len(self.text) > 50 else self.text)
         return (
-            f"{self.title} - {truncated_text} ({self.pub_date}, {self.author})"
+            f"{self.title} - {self.text[:50]} ({self.pub_date}, {self.author})"
         )
 
 
 class Comment(PublishedModel):
-    related_name_value = 'comments'
     title = models.CharField(max_length=256, verbose_name='Заголовок')
     text = models.TextField(verbose_name='Текст')
     created_at = models.DateTimeField(
@@ -112,26 +103,21 @@ class Comment(PublishedModel):
         verbose_name='Дата и время публикации комментария')
     post = models.ForeignKey(
         Post,
-        related_name=related_name_value,
         on_delete=models.CASCADE,
         verbose_name='Пост'
     )
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        related_name=related_name_value,
         verbose_name='Автор комментария'
     )
 
     class Meta:
+        default_related_name = 'comments'
         ordering = ('created_at',)
         verbose_name = 'комментарий'
         verbose_name_plural = 'Комментарии'
 
     def __str__(self):
-        truncated_text = (
-            (self.text[:50] + '...') if len(self.text) > 50 else self.text)
-        return (
-            f'''{self.title} - {truncated_text}
-            ({self.created_at}, {self.author})'''
-        )
+        return dedent(f"""{self.title} - {self.text[:50]}
+        ({self.created_at}, {self.author})""").strip()

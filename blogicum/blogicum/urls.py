@@ -13,13 +13,13 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.contrib import admin
-from django.conf.urls.static import static
-from django.urls import include, path, reverse_lazy
 from django.conf import settings
-from blog.forms import UserRegistrationForm
-from django.views.generic.edit import CreateView
 from django.conf.urls import handler404, handler500, handler403
+from django.conf.urls.static import static
+from django.contrib import admin
+from django.contrib.auth.forms import UserCreationForm
+from django.urls import include, path, reverse_lazy
+from django.views.generic.edit import CreateView
 
 
 urlpatterns = [
@@ -31,7 +31,7 @@ urlpatterns = [
         'auth/registration/',
         CreateView.as_view(
             template_name='registration/registration_form.html',
-            form_class=UserRegistrationForm,
+            form_class=UserCreationForm,
             success_url=reverse_lazy('blog:index'),
         ),
         name='registration',

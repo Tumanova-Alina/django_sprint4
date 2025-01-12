@@ -1,33 +1,27 @@
 from django.shortcuts import get_object_or_404, render, redirect
-
+from django.urls import reverse_lazy, reverse
 from django.views.generic import (
     CreateView, DeleteView, DetailView, ListView, UpdateView
 )
-
-from django.urls import reverse_lazy, reverse
-
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.forms import UserCreationForm
 
 from .models import Post, Category, Comment, User
-
-from .forms import PostForm, CommentForm, UserRegistrationForm, UserEditForm
-
-
-DEFAULT_POST_COUNT = 5
-pagination_num = 10
+from .forms import PostForm, CommentForm, UserEditForm
+from .querysets import paginate_posts
 
 
-class AuthorCheck:
+class PostAuthorCheck:
     def test(self, obj, user):
         if hasattr(obj, 'author'):
             return obj.author == user
         return False
 
 
-class ProfileCheck:
+class CommentAuthorCheck:
     def test(self, obj, user):
-        if isinstance(obj, type(user)):
-            return obj == user
+        if hasattr(obj, 'comment_author'):
+            return obj.comment_author == user
         return False
 
 
@@ -35,8 +29,7 @@ class OnlyAuthorMixin(UserPassesTestMixin):
 
     def test_func(self):
         obj = self.get_object()  # Получение объекта пользователя
-        checks = [AuthorCheck(), ProfileCheck()]  # Список всех проверок
-        # Проверяем каждую проверку
+        checks = [PostAuthorCheck(), CommentAuthorCheck()]
         for check in checks:
             if check.test(obj, self.request.user):
                 return True
@@ -46,15 +39,19 @@ class OnlyAuthorMixin(UserPassesTestMixin):
 
 class PostListView(ListView):
     model = Post
-    paginate_by = pagination_num
     template_name = 'blog/index.html'
     context_object_name = 'posts'
 
-    def get_queryset(self):
-        return Post.objects.apply_filters(
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        posts = Post.objects.apply_filters(
             with_published=True,
             with_comment_count=True,
+            with_related=True
         )
+
+        context['page_obj'] = paginate_posts(posts, self.request)
+        return context
 
 
 class PostDetailView(DetailView):
@@ -64,28 +61,22 @@ class PostDetailView(DetailView):
     slug_url_kwarg = 'post_id'
 
     def get_object(self):
-        post_id = self.kwargs.get('post_id')
+        post_id = self.kwargs['post_id']
 
-        if self.request.user.is_authenticated:
-            post = get_object_or_404(Post, id=self.kwargs['post_id'])
-            if post and post.author == self.request.user:
-                return post
-
-        filtered_posts = Post.objects.filter(
-            id=post_id).apply_filters(with_published=True)
-        post = get_object_or_404(filtered_posts, id=self.kwargs['post_id'])
+        post = (
+            get_object_or_404(Post, id=post_id) if (get_object_or_404(
+                Post, id=post_id).author == self.request.user)
+            else get_object_or_404(Post.objects.apply_filters(
+                with_published=True), id=post_id)
+        )
         return post
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        if self.object:
-            context['form'] = CommentForm()
-            context['comments'] = (
-                self.object.comments.select_related('author')
-            )
-        else:
-            context['form'] = CommentForm()
-            context['comments'] = Comment.objects.none()
+        context['form'] = CommentForm()
+        context['comments'] = (
+            self.object.comments.select_related('author')
+        )
         return context
 
 
@@ -96,14 +87,12 @@ def category_posts(request, category_slug):
         slug=category_slug,
         is_published=True
     )
-    page_number = request.GET.get('page')
 
     page_obj = category.posts.all().apply_filters(
         with_published=True,
-        with_comment_count=True,
-        with_pagination=True,
-        page_number=page_number,
-        pagination_num=pagination_num)
+        with_comment_count=True
+    )
+    page_obj = paginate_posts(page_obj, request)
     context = {
         'category': category,
         'page_obj': page_obj
@@ -148,8 +137,7 @@ class PostUpdateView(
         return redirect(self.get_success_url())
 
     def handle_no_permission(self):
-        post_id = self.kwargs['post_id']
-        return redirect('blog:post_detail', post_id=post_id)
+        return redirect('blog:post_detail', self.kwargs['post_id'])
 
     def get_success_url(self):
         return reverse('blog:post_detail',
@@ -183,13 +171,16 @@ class CommentFormMixin:
 class CommentListView(CommentMixin, ListView):
     context_object_name = 'comments'
 
+    def get_post(self):
+        return get_object_or_404(Post, id=self.kwargs['post_id'])
+
     def get_queryset(self):
-        post = get_object_or_404(Post, id=self.kwargs['post_id'])
+        post = self.get_post()
         return post.comments.all()
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['post'] = get_object_or_404(Post, id=self.kwargs['post_id'])
+        context['post'] = self.get_post()
         if self.request.user.is_authenticated:
             context['form'] = CommentForm()
         return context
@@ -237,7 +228,7 @@ class ProfileMixin:
 
 
 class ProfileFormMixin:
-    form_class = UserRegistrationForm
+    form_class = UserCreationForm
 
 
 class ProfileDetailView(ProfileMixin, DetailView):
@@ -246,48 +237,30 @@ class ProfileDetailView(ProfileMixin, DetailView):
     slug_url_kwarg = 'username'
 
     def get_object(self):
-        username = self.kwargs.get('username')
-        author = get_object_or_404(User, username=username)
-        return author
+        return get_object_or_404(User, username=self.kwargs['username'])
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         author = self.object
 
-        page_number = self.request.GET.get('page')
-
-        if self.request.user.is_authenticated and author == self.request.user:
-            posts = author.posts.all().apply_filters(
-                with_comment_count=True,
-                with_pagination=True,
-                with_related=True,
-                page_number=page_number,
-                pagination_num=pagination_num
-            )
-
-        else:
-            posts = author.posts.all().apply_filters(
-                with_published=True,
-                with_comment_count=True,
-                with_pagination=True,
-                with_related=True,
-                page_number=page_number,
-                pagination_num=pagination_num
-            )
+        posts = author.posts.all().apply_filters(
+            with_comment_count=True,
+            with_related=True,
+            with_published=not (author == self.request.user)
+        )
 
         if self.object:
             context['form'] = CommentForm()
-            context['page_obj'] = posts
+            context['page_obj'] = paginate_posts(posts, self.request)
         return context
 
 
 class ProfileUpdateView(
 
-    OnlyAuthorMixin, LoginRequiredMixin, ProfileMixin,
+    LoginRequiredMixin, ProfileMixin,
     UpdateView
 ):
     context_object_name = 'profile'
-    slug_field = 'username'
     template_name = 'blog/user.html'
     form_class = UserEditForm
 
