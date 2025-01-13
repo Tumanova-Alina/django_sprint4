@@ -1,7 +1,8 @@
+from textwrap import dedent
+
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils.timezone import now
-from textwrap import dedent
 
 from .querysets import PostQuerySet
 
