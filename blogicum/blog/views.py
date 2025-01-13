@@ -19,27 +19,23 @@ def paginate_posts(posts, request, pagination_num=10):
 
 class PostAuthorMixin(UserPassesTestMixin):
     def test_func(self):
-        obj = self.get_object()
-        return hasattr(obj, 'author') and obj.author == self.request.user
+        post = self.get_object()
+        return post.author == self.request.user
 
 
 class CommentAuthorMixin(UserPassesTestMixin):
     def test_func(self):
-        obj = self.get_object()
-        return hasattr(
-            obj, 'author') and obj.author == self.request.user
+        comment = self.get_object()
+        return comment.author == self.request.user
 
 
 class PostListView(ListView):
     model = Post
     template_name = 'blog/index.html'
     context_object_name = 'posts'
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        posts = Post.objects.apply_filters()
-        context['page_obj'] = paginate_posts(posts, self.request)
-        return context
+    paginate_by = 10
+    # def get_queryset(self):
+    posts = Post.objects.apply_filters()
 
 
 class PostDetailView(DetailView):
@@ -51,8 +47,8 @@ class PostDetailView(DetailView):
         post = get_object_or_404(Post, id=self.kwargs['post_id'])
 
         if post.author != self.request.user:
-            post = get_object_or_404(Post.objects.apply_filters(
-                with_published=True), id=self.kwargs['post_id'])
+            post = get_object_or_404(
+                Post.objects.apply_filters(), id=self.kwargs['post_id'])
         return post
 
     def get_context_data(self, **kwargs):
@@ -72,10 +68,8 @@ def category_posts(request, category_slug):
         is_published=True
     )
 
-    page_obj = category.posts.all().apply_filters(
-        with_related=False
-    )
-    page_obj = paginate_posts(page_obj, request)
+    posts = category.posts.all().apply_filters()
+    page_obj = paginate_posts(posts, request)
     context = {
         'category': category,
         'page_obj': page_obj
@@ -118,11 +112,11 @@ class PostUpdateView(
         return redirect(self.get_success_url())
 
     def handle_no_permission(self):
-        return redirect('blog:post_detail', self.kwargs['post_id'])
+        return redirect('blog:post_detail', self.kwargs[self.pk_url_kwarg])
 
     def get_success_url(self):
-        return reverse('blog:post_detail',
-                       kwargs={'post_id': self.kwargs['post_id']})
+        return reverse('blog:post_detail', kwargs={
+            self.pk_url_kwarg: self.kwargs[self.pk_url_kwarg]})
 
 
 class PostDeleteView(
