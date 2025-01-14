@@ -7,6 +7,8 @@ class PostQuerySet(models.QuerySet):
 
     def apply_filters(
             self, with_published=True,
+            with_related=True,
+            with_comment_count=True
     ):
         posts = self
 
@@ -17,14 +19,13 @@ class PostQuerySet(models.QuerySet):
                 category__is_published=True
             )
 
-        posts = posts.with_related().with_comment_count()
+        if with_related:
+            posts = posts.select_related(
+                'category', 'author', 'location'
+            )
+
+        if with_comment_count:
+            posts = posts.annotate(comment_count=Count('comments')
+                                   ).order_by('-pub_date',)
+
         return posts
-
-    def with_related(self):
-        return self.select_related(
-            'category', 'author', 'location'
-        )
-
-    def with_comment_count(self):
-        return self.annotate(comment_count=Count('comments')
-                             ).order_by('-pub_date',)

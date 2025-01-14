@@ -49,7 +49,10 @@ class PostDetailView(DetailView):
 
         if post.author != self.request.user:
             post = get_object_or_404(
-                Post.objects.apply_filters(), id=self.kwargs['post_id'])
+                Post.objects.apply_filters(
+                    with_related=False,
+                    with_comment_count=False
+                ), id=self.kwargs['post_id'])
         return post
 
     def get_context_data(self, **kwargs):
