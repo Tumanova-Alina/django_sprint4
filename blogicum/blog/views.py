@@ -34,8 +34,9 @@ class PostListView(ListView):
     template_name = 'blog/index.html'
     context_object_name = 'posts'
     paginate_by = 10
-    # def get_queryset(self):
-    posts = Post.objects.apply_filters()
+
+    def get_queryset(self):
+        return Post.objects.apply_filters()
 
 
 class PostDetailView(DetailView):
