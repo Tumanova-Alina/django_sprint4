@@ -29,11 +29,10 @@
 
 ![Python](https://img.shields.io/badge/Python-3.9.13-blue)
 ![Django](https://img.shields.io/badge/Django-3.2.16-green)
+![SQlite3](https://img.shields.io/badge/SQlite3-red)
 ![HTML](https://img.shields.io/badge/HTML-5-orange)
 ![CSS](https://img.shields.io/badge/CSS-3-blue)
 ![Bootstrap](https://img.shields.io/badge/Bootstrap-4-purple)
-![Unittest](https://img.shields.io/badge/Unittest-tested-brightgreen)
-![PythonAnywhere](https://img.shields.io/badge/Deployed-PythonAnywhere-red)
 ![pytest](https://img.shields.io/badge/pytest-7.1.3-yellow)
 ![BeautifulSoup](https://img.shields.io/badge/BeautifulSoup-4.11.2-lightgreen)
 ![Pillow](https://img.shields.io/badge/Pillow-9.3.0-pink)
